@@ -43,9 +43,35 @@
     </div>
 
     <van-dialog v-model:show="showAdd" :title="t('cards.add')" show-cancel-button @confirm="onAdd">
-      <van-field v-model="form.bank" :label="t('cards.bankName')" :placeholder="t('cards.bankPh')" />
+      <van-field
+        :model-value="form.bank"
+        is-link
+        readonly
+        :label="t('cards.bankName')"
+        :placeholder="t('cards.pickBank')"
+        @click="showBank = true"
+      />
       <van-field v-model="form.number" type="digit" maxlength="16" :label="t('cards.cardNo')" :placeholder="t('cards.cardPh')" />
     </van-dialog>
+
+    <van-popup v-model:show="showBank" position="bottom" round :style="{ height: '72%' }">
+      <div class="pick-hd">{{ t('cards.pickBank') }}</div>
+      <van-search v-model="bankQ" :placeholder="t('cards.bankPh')" />
+      <div class="pick-list">
+        <button
+          v-for="b in filteredBanks"
+          :key="b.id"
+          type="button"
+          :class="['pick-row', { on: form.bankId === b.id }]"
+          @click="chooseBank(b)"
+        >
+          <span class="dot" :style="{ background: b.color }" />
+          <span class="bname">{{ b.name }}</span>
+          <span class="cty">{{ t(`cards.cty_${b.country}`) }}</span>
+        </button>
+        <div v-if="!filteredBanks.length" class="pick-empty">{{ t('cards.noBank') }}</div>
+      </div>
+    </van-popup>
 
     <van-dialog v-model:show="showService" :title="t('common.service')" :confirm-button-text="t('common.confirm')">
       <div class="svc">{{ t('cards.serviceBody') }}</div>
@@ -58,16 +84,37 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { showFailToast, showSuccessToast } from 'vant'
 import { fetchHome } from '../api'
-import { mockCardMeta } from '../mock/products'
+import { linkBanks, mockCardMeta } from '../mock/products'
 import { addExtraCard, getExtraCards, pushNotice } from '../utils/local'
 import { maskAccount } from '../utils'
 
 const { t } = useI18n()
 const mainNo = ref('')
 const showAdd = ref(false)
+const showBank = ref(false)
 const showService = ref(false)
 const extra = ref([])
-const form = reactive({ bank: 'Wells Fargo', number: '' })
+const bankQ = ref('')
+const defaultBank = linkBanks.find((b) => b.id === 'scb') || linkBanks[0]
+const form = reactive({
+  bankId: defaultBank.id,
+  bank: defaultBank.name,
+  color: defaultBank.color,
+  number: ''
+})
+
+const filteredBanks = computed(() => {
+  const q = bankQ.value.trim().toLowerCase()
+  if (!q) return linkBanks
+  return linkBanks.filter((b) => `${b.name} ${b.country}`.toLowerCase().includes(q))
+})
+
+function chooseBank(b) {
+  form.bankId = b.id
+  form.bank = b.name
+  form.color = b.color
+  showBank.value = false
+}
 
 const maskedMain = computed(() => maskAccount(mainNo.value || '0000'))
 
@@ -101,11 +148,11 @@ function onAdd() {
   const masked = `**** **** **** ${num.slice(-4)}`
   addExtraCard({
     id,
-    name: form.bank || 'US Bank',
+    name: form.bank,
     network: t('cards.networkVisa'),
     masked,
     full: num.replace(/(\d{4})(?=\d)/g, '$1 ').trim(),
-    color: 'linear-gradient(135deg,#37474f,#546e7a)'
+    color: form.color
   })
   extra.value = getExtraCards()
   pushNotice(t('cards.addOk'), form.bank)
@@ -145,4 +192,16 @@ onMounted(async () => {
   border-radius: 12px; padding: 2px 8px;
 }
 .svc { padding: 16px; font-size: 14px; color: #333; line-height: 1.6; }
+.pick-hd { padding: 16px 16px 0; font-size: 16px; font-weight: 700; text-align: center; }
+.pick-list { height: calc(100% - 96px); overflow: auto; padding: 0 8px 16px; }
+.pick-row {
+  width: 100%; display: flex; align-items: center; gap: 10px;
+  border: 0; background: #fff; padding: 12px 8px; border-bottom: 1px solid #f2f3f5;
+  text-align: left;
+}
+.pick-row.on { background: #eef4ff; }
+.dot { width: 28px; height: 28px; border-radius: 8px; flex-shrink: 0; }
+.bname { flex: 1; font-size: 15px; color: #222; font-weight: 600; }
+.cty { font-size: 12px; color: #8a8f99; }
+.pick-empty { padding: 24px; text-align: center; color: #999; font-size: 13px; }
 </style>

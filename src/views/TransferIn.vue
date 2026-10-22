@@ -107,7 +107,21 @@ const banks = [
   { id: 'boa', name: 'Bank of America', short: 'BA', color: '#E31837', url: 'https://www.bankofamerica.com/' },
   { id: 'citi', name: 'Citi', short: 'CI', color: '#003B70', url: 'https://www.citi.com/' },
   { id: 'wf', name: 'Wells Fargo', short: 'WF', color: '#D71E28', url: 'https://www.wellsfargo.com/' },
-  { id: 'hsbc', name: 'HSBC', short: 'HS', color: '#DB0011', url: 'https://www.hsbc.com/' }
+  { id: 'hsbc', name: 'HSBC', short: 'HS', color: '#DB0011', url: 'https://www.hsbc.com/' },
+  { id: 'dbs', name: 'DBS', short: 'DB', color: '#E30613', url: 'https://www.dbs.com/' },
+  { id: 'ocbc', name: 'OCBC', short: 'OC', color: '#ED1C24', url: 'https://www.ocbc.com/' },
+  { id: 'uob', name: 'UOB', short: 'UO', color: '#003DA5', url: 'https://www.uob.com.sg/' },
+  { id: 'maybank', name: 'Maybank', short: 'MB', color: '#8A6D00', url: 'https://www.maybank.com/' },
+  { id: 'cimb', name: 'CIMB', short: 'CM', color: '#7A0019', url: 'https://www.cimb.com/' },
+  { id: 'bca', name: 'BCA', short: 'BC', color: '#003D79', url: 'https://www.bca.co.id/' },
+  { id: 'bri', name: 'BRI', short: 'BR', color: '#00529C', url: 'https://www.bri.co.id/' },
+  { id: 'mandiri', name: 'Bank Mandiri', short: 'MD', color: '#003B70', url: 'https://www.bankmandiri.co.id/' },
+  { id: 'bbl', name: 'Bangkok Bank', short: 'BB', color: '#1B3A6B', url: 'https://www.bangkokbank.com/' },
+  { id: 'kbank', name: 'Kasikornbank', short: 'KB', color: '#138F2D', url: 'https://www.kasikornbank.com/' },
+  { id: 'scb', name: 'SCB', short: 'SC', color: '#4B2884', url: 'https://www.scb.co.th/' },
+  { id: 'vcb', name: 'Vietcombank', short: 'VC', color: '#006B3F', url: 'https://www.vietcombank.com.vn/' },
+  { id: 'bdo', name: 'BDO', short: 'BD', color: '#0033A0', url: 'https://www.bdo.com.ph/' },
+  { id: 'bpi', name: 'BPI', short: 'BP', color: '#A6192E', url: 'https://www.bpi.com.ph/' }
 ]
 
 function formatAcct(no) {

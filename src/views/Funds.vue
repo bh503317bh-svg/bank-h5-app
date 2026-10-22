@@ -114,11 +114,44 @@
           </div>
         </div>
       </van-tab>
+
+      <van-tab :title="t('funds.seaStocks')">
+        <div class="section-hd">
+          <span>{{ t('funds.seaStockTitle') }}</span>
+        </div>
+        <div class="wb-card list">
+          <div v-for="(s, idx) in stocks" :key="s.id" class="fund" @click="goBuy(s)">
+            <div class="rank" :class="{ top: idx < 3 }">{{ idx + 1 }}</div>
+            <div class="body">
+              <div class="fname">
+                <span class="sym">{{ s.ticker }}</span>
+                {{ s.name }}
+                <span class="tag">{{ s.market }}</span>
+              </div>
+              <div class="metrics">
+                <div>
+                  <div class="pop">{{ s.price }}</div>
+                  <div class="muted">{{ t('funds.last') }}</div>
+                </div>
+                <div>
+                  <div :class="rateClass(s.chg)">{{ s.chg }}</div>
+                  <div class="muted">{{ t('funds.chg') }}</div>
+                </div>
+                <van-button size="small" color="#e8f1ff" style="color:#0052d9" round @click.stop="goBuy(s)">
+                  {{ t('funds.buy') }}
+                </van-button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </van-tab>
     </van-tabs>
 
     <div class="mkt">
-      <span>{{ t('funds.tickerNasdaq') }} 17,246.89 <i class="down">-0.92%</i></span>
-      <span>{{ t('funds.tickerSpx') }} 5,272.27 <i class="down">-0.13%</i></span>
+      <span v-for="q in quotes" :key="q.id">
+        {{ t(q.nameKey) }} {{ q.price }}
+        <i :class="q.chg.startsWith('-') ? 'down' : 'up'">{{ q.chg }}</i>
+      </span>
     </div>
 
     <van-action-sheet v-model:show="showWatch" :title="t('common.watchlist')">
@@ -138,7 +171,7 @@ import { computed, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { showFailToast, showSuccessToast } from 'vant'
-import { SECTOR_KEYS, fundEntryRows, localizeFunds } from '../mock/products'
+import { ASEAN_INDEX_TICKERS, SECTOR_KEYS, fundEntryRows, localizeFunds, localizeStocks, marketQuotes } from '../mock/products'
 import { getWatchlist, isWatched, toggleWatch } from '../utils/local'
 
 const { t, locale, tm } = useI18n()
@@ -172,6 +205,8 @@ const entries = computed(() => {
 })
 
 const funds = computed(() => { locale.value; return localizeFunds(t) })
+const stocks = computed(() => { locale.value; return localizeStocks(t) })
+const quotes = marketQuotes
 
 const subTabs = computed(() => {
   locale.value
@@ -204,7 +239,7 @@ const filteredByEntry = computed(() => {
   let rows = funds.value
   const k = activeEntry.value
   if (k === 'qqq') rows = rows.filter((f) => f.ticker === 'QQQ')
-  else if (k === 'index') rows = rows.filter((f) => ['SPY', 'QQQ', 'VTI'].includes(f.ticker))
+  else if (k === 'index') rows = rows.filter((f) => ['SPY', 'QQQ', 'VTI', ...ASEAN_INDEX_TICKERS].includes(f.ticker))
   else if (k === 'gold') rows = rows.filter((f) => f.sector === 'gold')
   else if (k === 'bond' || k === 'fixed' || k === 'treasury') rows = rows.filter((f) => f.sector === 'bond')
   else if (k === 'global') rows = rows.filter((f) => f.sector !== 'gold')
@@ -288,7 +323,7 @@ function rateClass(v) {
 function goBuy(f) {
   router.push({
     path: '/wealth/buy',
-    query: { id: f.id, name: f.name, rate: f.y1 }
+    query: { id: f.id, name: f.name, rate: f.y1 || f.chg || '' }
   })
 }
 
@@ -384,9 +419,11 @@ function openWatch(w) {
 .muted { color: #8a8f99; font-size: 11px; margin-top: 2px; }
 .mkt {
   position: sticky; bottom: 56px; background: #fff; border-top: 1px solid #eef0f4;
-  display: flex; justify-content: space-around; padding: 8px; font-size: 11px; color: #555;
+  display: flex; gap: 14px; padding: 8px 12px; font-size: 11px; color: #555;
+  overflow-x: auto; white-space: nowrap;
 }
-.mkt .down { font-size: 11px; font-style: normal; }
+.mkt span { flex: 0 0 auto; }
+.mkt .down, .mkt .up { font-size: 11px; font-style: normal; }
 .empty { padding: 20px; text-align: center; color: #999; font-size: 13px; }
 .watch-sheet { padding: 8px 16px 24px; max-height: 50vh; overflow: auto; }
 .watch-row {
