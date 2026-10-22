@@ -6,8 +6,8 @@
         <div class="info" @click="showProfile = true">
           <div class="name">{{ displayName }} <van-icon name="edit" size="14" /></div>
           <div class="mobile">{{ mobile }}</div>
-          <div class="kyc">
-            <span class="badge">{{ kycLabel }}</span>
+          <div class="kyc" @click.stop="go('/kyc')">
+            <span class="badge">KYC · {{ kycLabel }}</span>
             <span v-if="customerId" class="cid">ID {{ customerId }}</span>
           </div>
         </div>
@@ -32,6 +32,14 @@
     </div>
 
     <div class="panel">
+      <div class="kyc-entry" @click="go('/kyc')">
+        <div class="kyc-ico"><van-icon name="contact" size="22" /></div>
+        <div class="kyc-copy">
+          <div class="kyc-t">KYC</div>
+          <div class="kyc-s">{{ kycLabel }}</div>
+        </div>
+        <van-icon name="arrow" color="#8a8f99" />
+      </div>
       <div class="wb-card shortcuts">
         <div v-for="q in shortcuts" :key="q.to" class="sc" @click="go(q.to)">
           <div class="sci"><van-icon :name="q.icon" size="20" /></div>
@@ -56,6 +64,11 @@
 
       <div class="section-hd"><span>{{ t('mine.services') }}</span></div>
       <van-cell-group inset>
+        <van-cell :title="t('desk.title_kyc')" :label="kycLabel" is-link @click="go('/kyc')" />
+        <van-cell :title="t('desk.title_holdings')" is-link @click="go('/holdings')" />
+        <van-cell :title="t('desk.title_fx')" is-link @click="go('/fx')" />
+        <van-cell :title="t('desk.title_pay')" is-link @click="go('/pay')" />
+        <van-cell :title="t('desk.title_bills')" is-link @click="go('/bills')" />
         <van-cell :title="t('loans.entry')" :label="t('mine.loansDesc')" is-link @click="go('/loans')" />
         <van-cell :title="t('points.title')" :label="t('mine.pointsDesc')" is-link :value="String(points)" @click="go('/points')" />
         <van-cell :title="t('cards.title')" :label="t('mine.cardsDesc')" is-link @click="go('/cards')" />
@@ -99,11 +112,13 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { showSuccessToast, showToast } from 'vant'
+import { showToast } from 'vant'
 import { fetchHome } from '../api'
+import { openResult } from '../utils/result'
 import { useAuthStore } from '../stores/auth'
 import { money, maskAccount } from '../utils'
 import { getNotices, getPoints, pushNotice } from '../utils/local'
+import { getKyc } from '../services/desk'
 
 const { t, locale } = useI18n()
 const auth = useAuthStore()
@@ -125,6 +140,8 @@ const unreadText = computed(() => (unread.value > 0 ? String(unread.value) : '')
 const accountCount = computed(() => accounts.value.length)
 const customerId = computed(() => customer.value?.customer_id || customer.value?.id || '')
 const kycLabel = computed(() => {
+  if (getKyc().status === 'verified') return t('desk.kycOk')
+  if (getKyc().status === 'pending') return t('mine.kycPending')
   const s = (customer.value?.kyc_status || customer.value?.status || 'verified').toString().toLowerCase()
   if (s.includes('pend')) return t('mine.kycPending')
   if (s.includes('reject')) return t('mine.kycReject')
@@ -168,8 +185,17 @@ function saveProfile() {
     role: auth.user?.role
   })
   pushNotice(t('mine.profile'), t('mine.profileSaved'))
-  showSuccessToast(t('mine.profileSaved'))
   showProfile.value = false
+  openResult(router, {
+    kind: 'profile',
+    note: t('result.note_profile'),
+    title: t('mine.profileSaved'),
+    back: '/mine',
+    rows: [
+      { label: t('mine.profile'), value: name },
+      { label: t('security.maskMobile'), value: auth.user?.mobile || '-' }
+    ]
+  })
 }
 
 async function load() {
@@ -215,6 +241,18 @@ onMounted(load)
 .eye { padding: 4px 0 0 4px; opacity: .9; }
 
 .panel { margin-top: -16px; padding: 0 12px 20px; }
+.kyc-entry {
+  display: flex; align-items: center; gap: 12px;
+  background: #fff; border-radius: 12px; padding: 14px;
+  margin-bottom: 12px; box-shadow: 0 6px 16px rgba(16, 24, 40, .06);
+}
+.kyc-ico {
+  width: 40px; height: 40px; border-radius: 12px; background: #e8f1ff; color: #0052d9;
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.kyc-copy { flex: 1; min-width: 0; text-align: left; }
+.kyc-t { font-weight: 800; font-size: 16px; }
+.kyc-s { margin-top: 2px; color: #8a8f99; font-size: 12px; }
 .shortcuts {
   display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px 0;
   padding: 14px 6px; text-align: center; font-size: 11px; color: #555;

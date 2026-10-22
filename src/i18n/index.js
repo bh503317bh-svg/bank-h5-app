@@ -36,7 +36,6 @@ export const i18n = createI18n({
 export function setLocale(next) {
   if (next !== 'zh-CN' && next !== 'en-US') return
   i18n.global.locale.value = next
-  localStorage.setItem('wb_lang', next)
   document.documentElement.lang = next === 'en-US' ? 'en' : 'zh-CN'
 }
 
@@ -47,4 +46,3 @@ export function applyLanQuery(query) {
 }
 
 document.documentElement.lang = locale === 'en-US' ? 'en' : 'zh-CN'
-localStorage.setItem('wb_lang', locale)

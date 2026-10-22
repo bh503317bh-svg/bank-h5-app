@@ -31,6 +31,11 @@
           :label="t('wealthBuy.amount')"
           :placeholder="t('wealthBuy.amountPh')"
         />
+        <van-cell :title="t('desk.riskNeed')">
+          <template #right-icon>
+            <van-switch v-model="riskAck" size="20px" active-color="#0052d9" />
+          </template>
+        </van-cell>
       </van-cell-group>
       <div style="margin:24px 16px">
         <van-button
@@ -53,11 +58,13 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { showFailToast, showSuccessToast } from 'vant'
+import { showFailToast } from 'vant'
 import { fetchHome, wealthBuy } from '../api'
 import PayPassword from '../components/PayPassword.vue'
 import { money } from '../utils'
 import { pushNotice } from '../utils/local'
+import { addHolding, getKyc, saveKyc } from '../services/desk'
+import { openResult } from '../utils/result'
 
 const { t } = useI18n()
 const route = useRoute()
@@ -74,6 +81,7 @@ const amount = ref('100.00')
 const loading = ref(false)
 const showPicker = ref(false)
 const payPwd = ref(null)
+const riskAck = ref(!!getKyc().riskAck)
 
 const accountActions = computed(() =>
   accounts.value.map((a) => ({
@@ -112,6 +120,16 @@ async function onSubmit() {
     showFailToast(t('wealthBuy.needAmount'))
     return
   }
+  if (getKyc().status !== 'verified') {
+    showFailToast(t('desk.kycIncomplete'))
+    router.push('/kyc')
+    return
+  }
+  if (!riskAck.value) {
+    showFailToast(t('desk.riskNeed'))
+    return
+  }
+  saveKyc({ riskAck: true })
   const pin = await payPwd.value.ask()
   if (!pin) return
   loading.value = true
@@ -124,12 +142,43 @@ async function onSubmit() {
       pay_password: pin
     })
     if (res.code !== 0) {
-      showFailToast(res.message || t('wealthBuy.fail'))
+      openResult(router, {
+        kind: 'wealth',
+        note: t('result.note_wealth'),
+        ok: false,
+        title: t('wealthBuy.fail'),
+        reason: res.message || t('wealthBuy.fail'),
+        amount: money(amount.value),
+        subtitle: productName.value,
+        back: '/wealth',
+        rows: [
+          { label: t('result.product'), value: productName.value },
+          { label: t('wealthBuy.account'), value: accountNo.value }
+        ]
+      })
       return
     }
+    addHolding({
+      productId: productId.value,
+      name: productName.value,
+      amount: amount.value,
+      rate: rate.value
+    })
     pushNotice(t('wealthBuy.ok'), productName.value)
-    showSuccessToast(t('wealthBuy.ok'))
-    setTimeout(() => router.replace('/transactions'), 600)
+    openResult(router, {
+      kind: 'wealth',
+      note: t('result.note_wealth'),
+      title: t('wealthBuy.ok'),
+      amount: money(amount.value),
+      subtitle: productName.value,
+      ref: res.data?.txn_id,
+      back: '/wealth',
+      rows: [
+        { label: t('result.product'), value: productName.value },
+        { label: t('wealthBuy.account'), value: accountNo.value },
+        { label: t('wealthBuy.rateHint'), value: rate.value || '-' }
+      ]
+    })
   } finally {
     loading.value = false
   }

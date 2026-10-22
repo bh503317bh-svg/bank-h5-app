@@ -9,6 +9,7 @@
       <van-cell-group inset>
         <van-field v-model="mobile" name="mobile" :label="t('login.mobile')" placeholder="13800000001" />
         <van-field v-model="password" type="password" name="password" :label="t('login.password')" placeholder="Passw0rd!" />
+        <van-field v-if="needOtp" v-model="otp" :label="t('desk.otp')" :placeholder="otpHint" />
       </van-cell-group>
       <div style="margin: 24px 16px">
         <van-button round block type="primary" native-type="submit" color="#0052d9">{{ t('login.submit') }}</van-button>
@@ -24,21 +25,30 @@ import { useI18n } from 'vue-i18n'
 import { showFailToast, showSuccessToast } from 'vant'
 import { login } from '../api'
 import { useAuthStore } from '../stores/auth'
+import { currentOtp, pushLoginAlert, twoFaOn } from '../services/desk'
 
 const { t } = useI18n()
 const mobile = ref('13800000001')
 const password = ref('Passw0rd!')
+const otp = ref('')
+const needOtp = twoFaOn()
+const otpHint = `${currentOtp()} · ${t('desk.otpHint')}`
 const router = useRouter()
 const route = useRoute()
 const auth = useAuthStore()
 
 async function onSubmit() {
+  if (needOtp && otp.value !== currentOtp()) {
+    showFailToast(t('desk.otpBad'))
+    return
+  }
   const res = await login(mobile.value, password.value)
   if (res.code !== 0) {
     showFailToast(res.message || t('login.fail'))
     return
   }
   auth.setSession(res.data.access_token, res.data)
+  pushLoginAlert()
   showSuccessToast(t('login.ok'))
   const q = {}
   if (route.query.lan) q.lan = route.query.lan

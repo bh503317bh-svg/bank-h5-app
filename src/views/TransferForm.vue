@@ -24,6 +24,14 @@
         />
         <template v-else>
           <van-field
+            v-model="payeeLabel"
+            readonly
+            is-link
+            :label="t('desk.payeesLink')"
+            :placeholder="t('desk.emptyPayee')"
+            @click="showPayees = true"
+          />
+          <van-field
             v-model="beneficiaryName"
             :label="t('transfer.beneficiary')"
             :placeholder="t('transfer.beneficiaryPh')"
@@ -31,8 +39,8 @@
           />
           <van-field
             v-model="toAccount"
-            :label="mode === 'card' ? t('transfer.cardNoLabel') : t('transfer.to')"
-            :placeholder="mode === 'card' ? t('transfer.cardPh') : t('transfer.toPh')"
+            :label="mode === 'card' ? t('transfer.cardNoLabel') : mode === 'phone' ? t('desk.phone') : t('transfer.to')"
+            :placeholder="mode === 'card' ? t('transfer.cardPh') : mode === 'phone' ? '0812345678' : t('transfer.toPh')"
             required
           />
         </template>
@@ -85,6 +93,13 @@
       close-on-click-action
       @select="onPick"
     />
+    <van-action-sheet
+      v-model:show="showPayees"
+      :actions="payeeActions"
+      :cancel-text="t('common.cancel')"
+      close-on-click-action
+      @select="onPayee"
+    />
     <PayPassword ref="payPwd" />
   </div>
 </template>
@@ -92,14 +107,17 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useRoute } from 'vue-router'
-import { showFailToast, showSuccessToast } from 'vant'
+import { useRoute, useRouter } from 'vue-router'
+import { showFailToast } from 'vant'
 import { fetchHome, transfer } from '../api'
 import PayPassword from '../components/PayPassword.vue'
 import { pushNotice } from '../utils/local'
+import { knownPayee, limitError, recordOrder, savePayee, validateCounterparty, listPayees } from '../services/desk'
+import { openResult } from '../utils/result'
 
 const { t } = useI18n()
 const route = useRoute()
+const router = useRouter()
 const mode = computed(() => String(route.query.mode || 'wire'))
 const needWire = computed(() => mode.value === 'wire' || mode.value === 'other' || mode.value === 'card')
 
@@ -107,6 +125,7 @@ const pageTitle = computed(() => {
   if (mode.value === 'self') return t('transfer.toSelf')
   if (mode.value === 'other') return t('transfer.toOther')
   if (mode.value === 'card') return t('transfer.toCard')
+  if (mode.value === 'phone') return t('transfer.hubPhone')
   return t('transfer.hubWire')
 })
 
@@ -124,7 +143,24 @@ const loading = ref(false)
 const payPwd = ref(null)
 const myAccounts = ref([])
 const showPick = ref(false)
+const showPayees = ref(false)
 const pickTarget = ref('from')
+const payeeLabel = ref('')
+const payeeActions = computed(() => {
+  const list = listPayees().map((p) => ({ name: `${p.name} · ${p.account}`, payee: p }))
+  return list.length ? list : [{ name: t('desk.emptyPayee'), disabled: true }]
+})
+
+function onPayee(action) {
+  if (!action?.payee) return
+  const p = action.payee
+  beneficiaryName.value = p.name
+  toAccount.value = p.account
+  swiftCode.value = p.swift || swiftCode.value
+  bankName.value = p.bank || bankName.value
+  bankCountry.value = p.country || bankCountry.value
+  payeeLabel.value = p.name
+}
 
 function fmtBal(a) {
   const b = a?.balance ?? a?.available_balance
@@ -196,6 +232,12 @@ onMounted(async () => {
     toAccount.value = '4242424242424242'
     beneficiaryName.value = 'Cardholder'
     bankName.value = 'Visa / Mastercard'
+  } else if (mode.value === 'phone') {
+    toAccount.value = '0812345678'
+    beneficiaryName.value = ''
+    swiftCode.value = 'DBSSSGSG'
+    bankName.value = 'DBS'
+    bankCountry.value = 'SG'
   } else {
     toAccount.value = 'DE89370400440532013000'
   }
@@ -223,6 +265,51 @@ async function onSubmit() {
     showFailToast(t('transfer.needSwift'))
     return
   }
+  if (mode.value !== 'self') {
+    const bad = validateCounterparty({
+      mode: mode.value,
+      name: beneficiaryName.value,
+      account: toAccount.value,
+      swift: swiftCode.value
+    })
+    if (bad) {
+      showFailToast(t(bad))
+      return
+    }
+  }
+  const lim = limitError(amount.value)
+  if (lim) {
+    showFailToast(t(lim))
+    return
+  }
+  const firstLarge = mode.value !== 'self' && Number(amount.value) > 1000 && !knownPayee(toAccount.value)
+  if (firstLarge) {
+    recordOrder({
+      kind: mode.value,
+      name: beneficiaryName.value,
+      account: toAccount.value,
+      swift: swiftCode.value,
+      bank: bankName.value,
+      country: bankCountry.value,
+      amount: amount.value,
+      status: 'review'
+    })
+    pushNotice(t('desk.reviewHold'), `${beneficiaryName.value} ${amount.value}`)
+    openResult(router, {
+      kind: 'transfer',
+      note: t('result.note_transfer'),
+      ok: false,
+      title: t('transfer.outFail'),
+      reason: t('desk.reviewHold'),
+      amount: `$${Number(amount.value).toFixed(2)}`,
+      back: '/transfer',
+      rows: [
+        { label: t('transfer.to'), value: toAccount.value },
+        { label: t('transfer.beneficiary'), value: beneficiaryName.value || '-' }
+      ]
+    })
+    return
+  }
   const pin = await payPwd.value.ask()
   if (!pin) return
   loading.value = true
@@ -242,11 +329,56 @@ async function onSubmit() {
       transfer_type: transferType
     })
     if (res.code !== 0) {
-      showFailToast(res.message || t('transfer.outFail'))
+      openResult(router, {
+        kind: 'transfer',
+        note: t('result.note_transfer'),
+        ok: false,
+        title: t('transfer.outFail'),
+        reason: res.message || t('transfer.outFail'),
+        amount: `$${Number(amount.value).toFixed(2)}`,
+        back: '/transfer',
+        rows: [
+          { label: t('transfer.from'), value: fromAccount.value },
+          { label: t('transfer.to'), value: toAccount.value },
+          { label: t('transfer.beneficiary'), value: beneficiaryName.value || '-' }
+        ]
+      })
       return
     }
+    if (mode.value !== 'self') {
+      savePayee({
+        name: beneficiaryName.value,
+        account: toAccount.value,
+        swift: swiftCode.value,
+        bank: bankName.value,
+        country: bankCountry.value,
+        kind: mode.value
+      })
+    }
+    recordOrder({
+      kind: mode.value,
+      name: beneficiaryName.value,
+      account: toAccount.value,
+      amount: amount.value,
+      status: 'completed'
+    })
     pushNotice(t('transfer.outOk'), `${toAccount.value} ${amount.value}`)
-    showSuccessToast(t('transfer.outOk'))
+    openResult(router, {
+      kind: 'transfer',
+      note: t('result.note_transfer'),
+      title: t('transfer.outOk'),
+      amount: `$${Number(amount.value).toFixed(2)}`,
+      ref: res.data?.txn_id,
+      back: '/transfer',
+      rows: [
+        { label: t('transfer.from'), value: fromAccount.value },
+        { label: t('transfer.to'), value: toAccount.value },
+        { label: t('transfer.beneficiary'), value: beneficiaryName.value || '-' },
+        { label: t('transfer.swift'), value: swiftCode.value || '-' },
+        { label: t('transfer.bankName'), value: bankName.value || '-' },
+        { label: t('transfer.bankCountry'), value: bankCountry.value || '-' }
+      ]
+    })
   } finally {
     loading.value = false
   }

@@ -17,9 +17,15 @@
 
     <div class="section-hd"><span>{{ t('security.controls') }}</span></div>
     <van-cell-group inset>
+      <van-cell :title="t('desk.faceTitle')" :label="faceLabel" is-link @click="showFace = true" />
       <van-cell :title="t('security.biometric')" :label="t('security.biometricDesc')">
         <template #right-icon>
           <van-switch v-model="biometric" size="20px" active-color="#0052d9" @change="onBio" />
+        </template>
+      </van-cell>
+      <van-cell :title="t('desk.twoFa')" :label="otpLabel">
+        <template #right-icon>
+          <van-switch v-model="twoFa" size="20px" active-color="#0052d9" @change="onTwoFa" />
         </template>
       </van-cell>
       <van-cell :title="t('security.loginAlert')" :label="t('security.loginAlertDesc')">
@@ -35,6 +41,8 @@
     <div style="margin:24px 16px">
       <van-button round block type="primary" color="#0052d9" @click="onLock">{{ t('security.lock') }}</van-button>
     </div>
+
+    <FaceScan v-model:show="showFace" @done="onFace" />
 
     <van-action-sheet v-model:show="showDevices" :title="t('security.devices')">
       <div class="dev-list">
@@ -66,6 +74,9 @@ import { showConfirmDialog, showFailToast, showSuccessToast, showToast } from 'v
 import { setPayPassword } from '../api'
 import { useAuthStore } from '../stores/auth'
 import { loadJson, pushNotice, saveJson } from '../utils/local'
+import { currentOtp, faceVerified, markFaceVerified, setTwoFa, twoFaOn } from '../services/desk'
+import { openResult } from '../utils/result'
+import FaceScan from '../components/FaceScan.vue'
 
 const { t } = useI18n()
 const auth = useAuthStore()
@@ -75,6 +86,11 @@ const showPaySet = ref(false)
 const loginPwd = ref('')
 const newPayPwd = ref('')
 const biometric = ref(!!loadJson('sec_bio', false))
+const twoFa = ref(twoFaOn())
+const showFace = ref(false)
+const faceOk = ref(faceVerified())
+const faceLabel = computed(() => faceOk.value ? t('desk.facePassed') : t('desk.faceDemo'))
+const otpLabel = computed(() => twoFa.value ? `${currentOtp()} · ${t('desk.otpHint')}` : t('desk.otpHint'))
 const loginAlert = ref(loadJson('sec_alert', true) !== false)
 
 const device = computed(() => {
@@ -94,6 +110,7 @@ const score = computed(() => {
   if (auth.user?.mobile) s += 15
   if (biometric.value) s += 15
   if (loginAlert.value) s += 10
+  if (faceOk.value) s += 10
   return Math.min(100, s)
 })
 
@@ -103,6 +120,25 @@ const devices = computed(() => [
   { id: '3', name: 'iPhone App', at: '2026-10-15 09:02', place: 'US-East', current: false }
 ])
 
+function onFace() {
+  markFaceVerified()
+  faceOk.value = true
+  pushNotice(t('desk.faceTitle'), t('desk.facePassed'))
+  openResult(router, {
+    kind: 'security',
+    note: t('desk.faceLocal'),
+    title: t('desk.facePassed'),
+    back: '/security',
+    rows: [
+      { label: t('desk.faceTitle'), value: t('result.bizDone') },
+      { label: t('security.score'), value: String(Math.min(100, score.value)) }
+    ]
+  })
+}
+function onTwoFa(v) {
+  setTwoFa(!!v)
+  showToast(v ? t('security.bioOn') : t('security.bioOff'))
+}
 function onBio(v) {
   saveJson('sec_bio', !!v)
   showToast(v ? t('security.bioOn') : t('security.bioOff'))
@@ -123,7 +159,16 @@ async function onPwd() {
     return
   }
   pushNotice(t('security.changePwd'), t('security.changePwdOk'))
-  showSuccessToast(t('security.changePwdOk'))
+  openResult(router, {
+    kind: 'security',
+    note: t('result.note_security'),
+    title: t('security.changePwdOk'),
+    back: '/security',
+    rows: [
+      { label: t('security.changePwd'), value: t('result.bizDone') },
+      { label: t('security.device'), value: device.value }
+    ]
+  })
 }
 
 async function savePayPwd() {
@@ -133,11 +178,28 @@ async function savePayPwd() {
   }
   const res = await setPayPassword(loginPwd.value, newPayPwd.value)
   if (res.code !== 0) {
-    showFailToast(res.message || t('payPwd.setFail'))
+    openResult(router, {
+      kind: 'security',
+      note: t('result.note_security'),
+      ok: false,
+      title: t('payPwd.setFail'),
+      reason: res.message || t('payPwd.setFail'),
+      back: '/security',
+      rows: [{ label: t('payPwd.setTitle'), value: t('result.failStatus') }]
+    })
     return
   }
-  showSuccessToast(t('payPwd.setOk'))
   showPaySet.value = false
+  openResult(router, {
+    kind: 'security',
+    note: t('result.note_security'),
+    title: t('payPwd.setOk'),
+    back: '/security',
+    rows: [
+      { label: t('payPwd.setTitle'), value: t('result.bizDone') },
+      { label: t('security.maskMobile'), value: maskMobile.value }
+    ]
+  })
   loginPwd.value = ''
   newPayPwd.value = ''
   pushNotice(t('payPwd.setTitle'), t('payPwd.setOk'))

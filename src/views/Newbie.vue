@@ -59,7 +59,7 @@
 import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { showSuccessToast } from 'vant'
+import { openResult } from '../utils/result'
 import { getClaimed, getPoints, markClaimed, pushNotice, setPoints } from '../utils/local'
 
 const { t } = useI18n()
@@ -76,7 +76,17 @@ function onClaim() {
   claimed.value = true
   setPoints(getPoints() + 100)
   pushNotice(t('newbie.claim'), t('newbie.claimPts'))
-  showSuccessToast(t('newbie.claimPts'))
+  openResult(router, {
+    kind: 'reward',
+    note: t('result.note_reward'),
+    title: t('newbie.claimPts'),
+    amount: '+100',
+    back: '/newbie',
+    rows: [
+      { label: t('newbie.claim'), value: '+100' },
+      { label: t('points.balance'), value: String(getPoints()) }
+    ]
+  })
 }
 
 const transferDescHtml = computed(() =>

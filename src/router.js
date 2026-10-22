@@ -23,6 +23,16 @@ const router = createRouter({
     { path: '/points', component: () => import('./views/Points.vue'), meta: { tab: false } },
     { path: '/notices', component: () => import('./views/Notices.vue'), meta: { tab: false } },
     { path: '/security', component: () => import('./views/Security.vue'), meta: { tab: false } },
+    { path: '/payees', component: () => import('./views/Desk.vue'), meta: { tab: false, desk: 'payees' } },
+    { path: '/orders', component: () => import('./views/Desk.vue'), meta: { tab: false, desk: 'orders' } },
+    { path: '/schedule', component: () => import('./views/Desk.vue'), meta: { tab: false, desk: 'schedule' } },
+    { path: '/batch', component: () => import('./views/Desk.vue'), meta: { tab: false, desk: 'batch' } },
+    { path: '/fx', component: () => import('./views/Desk.vue'), meta: { tab: false, desk: 'fx' } },
+    { path: '/kyc', component: () => import('./views/Desk.vue'), meta: { tab: false, desk: 'kyc' } },
+    { path: '/pay', component: () => import('./views/Desk.vue'), meta: { tab: false, desk: 'pay' } },
+    { path: '/bills', component: () => import('./views/Desk.vue'), meta: { tab: false, desk: 'bills' } },
+    { path: '/holdings', component: () => import('./views/Desk.vue'), meta: { tab: false, desk: 'holdings' } },
+    { path: '/result', component: () => import('./views/Result.vue'), meta: { tab: false } },
     { path: '/ledger', redirect: '/transactions' }
   ],
   scrollBehavior: () => ({ top: 0 })

@@ -22,6 +22,7 @@
         </div>
         <div class="bc-no">{{ maskedMain }}</div>
         <div class="bc-action" @click="copyMain">{{ t('cards.copy') }}</div>
+        <div class="bc-ctl">{{ controlText('wecode') }}</div>
       </div>
 
       <div v-for="c in allCards" :key="c.id" class="bank-card" :style="{ background: c.color }">
@@ -33,6 +34,19 @@
           <div class="union">{{ c.network }}</div>
         </div>
         <div class="bc-no">{{ c.masked }}</div>
+        <div class="bc-ctl">{{ controlText(c.id) }}</div>
+      </div>
+      <div v-for="c in allCards" :key="'ctl'+c.id" class="ctl-row">
+        <span>{{ c.name }}</span>
+        <button type="button" @click="toggleFreeze(c.id)">{{ cardControl(c.id).frozen ? t('desk.unfreeze') : t('desk.freeze') }}</button>
+        <button type="button" @click="toggleLost(c.id)">{{ cardControl(c.id).lost ? t('desk.found') : t('desk.lost') }}</button>
+        <button type="button" @click="editLimit(c.id)">{{ t('desk.limit') }} {{ cardControl(c.id).limit }}</button>
+      </div>
+      <div class="ctl-row">
+        <span>{{ t('cards.wecodeName') }}</span>
+        <button type="button" @click="toggleFreeze('wecode')">{{ cardControl('wecode').frozen ? t('desk.unfreeze') : t('desk.freeze') }}</button>
+        <button type="button" @click="toggleLost('wecode')">{{ cardControl('wecode').lost ? t('desk.found') : t('desk.lost') }}</button>
+        <button type="button" @click="editLimit('wecode')">{{ t('desk.limit') }} {{ cardControl('wecode').limit }}</button>
       </div>
     </div>
 
@@ -81,19 +95,24 @@
 
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { showFailToast, showSuccessToast } from 'vant'
 import { fetchHome } from '../api'
 import { linkBanks, mockCardMeta } from '../mock/products'
 import { addExtraCard, getExtraCards, pushNotice } from '../utils/local'
+import { cardControl, setCardControl } from '../services/desk'
 import { maskAccount } from '../utils'
+import { openResult } from '../utils/result'
 
 const { t } = useI18n()
+const router = useRouter()
 const mainNo = ref('')
 const showAdd = ref(false)
 const showBank = ref(false)
 const showService = ref(false)
 const extra = ref([])
+const cardTick = ref(0)
 const bankQ = ref('')
 const defaultBank = linkBanks.find((b) => b.id === 'scb') || linkBanks[0]
 const form = reactive({
@@ -138,6 +157,67 @@ async function copyMain() {
   }
 }
 
+function controlText(id) {
+  cardTick.value
+  const c = cardControl(id)
+  if (c.lost) return t('desk.lost')
+  if (c.frozen) return t('desk.freeze')
+  return ''
+}
+
+function toggleFreeze(id) {
+  const next = !cardControl(id).frozen
+  setCardControl(id, { frozen: next })
+  cardTick.value += 1
+  pushNotice(next ? t('desk.freeze') : t('desk.unfreeze'), id)
+  openResult(router, {
+    kind: 'card',
+    note: t('result.note_card'),
+    title: next ? t('desk.freeze') : t('desk.unfreeze'),
+    back: '/cards',
+    rows: [
+      { label: t('cards.title'), value: id },
+      { label: t('result.status'), value: next ? t('desk.freeze') : t('desk.unfreeze') }
+    ]
+  })
+}
+
+function toggleLost(id) {
+  const next = !cardControl(id).lost
+  setCardControl(id, { lost: next, frozen: next ? true : cardControl(id).frozen })
+  cardTick.value += 1
+  pushNotice(next ? t('desk.lost') : t('desk.found'), id)
+  openResult(router, {
+    kind: 'card',
+    note: t('result.note_card'),
+    title: next ? t('desk.lost') : t('desk.found'),
+    back: '/cards',
+    rows: [
+      { label: t('cards.title'), value: id },
+      { label: t('result.status'), value: next ? t('desk.lost') : t('desk.found') }
+    ]
+  })
+}
+
+function editLimit(id) {
+  const raw = window.prompt(t('desk.limit'), String(cardControl(id).limit))
+  const n = Number(raw)
+  if (!Number.isFinite(n) || n <= 0) return
+  setCardControl(id, { limit: n })
+  cardTick.value += 1
+  openResult(router, {
+    kind: 'card',
+    note: t('result.note_card'),
+    title: t('desk.limit'),
+    amount: `$${n.toFixed(2)}`,
+    back: '/cards',
+    rows: [
+      { label: t('cards.title'), value: id },
+      { label: t('desk.limit'), value: `$${n.toFixed(2)}` }
+    ]
+  })
+}
+
 function onAdd() {
   const num = form.number.replace(/\D/g, '')
   if (num.length < 12) {
@@ -156,8 +236,20 @@ function onAdd() {
   })
   extra.value = getExtraCards()
   pushNotice(t('cards.addOk'), form.bank)
+  const bank = form.bank
   form.number = ''
-  showSuccessToast(t('cards.addOk'))
+  openResult(router, {
+    kind: 'card',
+    note: t('result.note_card'),
+    title: t('cards.addOk'),
+    subtitle: masked,
+    back: '/cards',
+    rows: [
+      { label: t('transfer.bankName'), value: bank },
+      { label: t('cards.title'), value: masked },
+      { label: t('cards.networkVisa'), value: t('cards.networkVisa') }
+    ]
+  })
 }
 
 onMounted(async () => {
@@ -186,6 +278,13 @@ onMounted(async () => {
 .bc-type { margin-top: 4px; font-size: 12px; opacity: .85; }
 .union { opacity: .55; font-size: 12px; }
 .bc-no { margin-top: 28px; font-size: 20px; letter-spacing: 2px; font-weight: 600; }
+.bc-ctl { margin-top: 8px; font-size: 12px; }
+.ctl-row {
+  display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+  background: #fff; border-radius: 10px; padding: 10px 12px; margin-bottom: 10px; font-size: 12px;
+}
+.ctl-row span { font-weight: 600; margin-right: auto; }
+.ctl-row button { border: 0; background: #eef4ff; color: #0052d9; border-radius: 12px; padding: 4px 8px; }
 .bc-action {
   position: absolute; right: 16px; bottom: 16px;
   font-size: 12px; opacity: .95; border: 1px solid rgba(255,255,255,.5);

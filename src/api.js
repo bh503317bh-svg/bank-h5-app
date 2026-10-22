@@ -71,6 +71,15 @@ export async function fetchLedgers(accountNo) {
   return data
 }
 
+export async function withdraw(accountNo, amount, payPassword) {
+  const { data } = await http.post(
+    '/dp/txns/withdraw',
+    { account_no: accountNo, amount, pay_password: payPassword },
+    { headers: { 'Idempotency-Key': crypto.randomUUID() } }
+  )
+  return data
+}
+
 export async function deposit(accountNo, amount, payPassword) {
   const { data } = await http.post(
     '/dp/txns/deposit',

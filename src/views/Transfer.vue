@@ -11,9 +11,9 @@
       <div class="hero-icon" aria-hidden="true" />
       <div class="hero-title" @click="goForm('wire')">{{ t('transfer.hubWire') }}</div>
       <div class="hero-sub">
-        <button type="button" @click="toastSoon('phone')">{{ t('transfer.hubPhone') }}</button>
+        <button type="button" @click="goForm('phone')">{{ t('transfer.hubPhone') }}</button>
         <span class="sep" />
-        <button type="button" @click="toastSoon('sched')">{{ t('transfer.hubSched') }}</button>
+        <button type="button" @click="go('/schedule')">{{ t('transfer.hubSched') }}</button>
       </div>
     </div>
 
@@ -31,6 +31,30 @@
         <div class="mi-body">
           <div class="mi-title">{{ t('transfer.toOther') }}</div>
           <div class="mi-sub">{{ t('transfer.toOtherSub') }}</div>
+        </div>
+        <van-icon name="arrow" color="#c8c9cc" />
+      </div>
+      <div class="menu-item" @click="go('/payees')">
+        <div class="mi-ico blue" aria-hidden="true"><van-icon name="contact" /></div>
+        <div class="mi-body">
+          <div class="mi-title">{{ t('desk.payeesLink') }}</div>
+          <div class="mi-sub">{{ t('desk.title_payees') }}</div>
+        </div>
+        <van-icon name="arrow" color="#c8c9cc" />
+      </div>
+      <div class="menu-item" @click="go('/batch')">
+        <div class="mi-ico blue" aria-hidden="true"><van-icon name="cluster-o" /></div>
+        <div class="mi-body">
+          <div class="mi-title">{{ t('desk.batchLink') }}</div>
+          <div class="mi-sub">{{ t('desk.batchHint') }}</div>
+        </div>
+        <van-icon name="arrow" color="#c8c9cc" />
+      </div>
+      <div class="menu-item" @click="go('/orders')">
+        <div class="mi-ico orange" aria-hidden="true"><van-icon name="todo-list-o" /></div>
+        <div class="mi-body">
+          <div class="mi-title">{{ t('desk.statusLink') }}</div>
+          <div class="mi-sub">{{ t('desk.limitHint') }}</div>
         </div>
         <van-icon name="arrow" color="#c8c9cc" />
       </div>
@@ -59,12 +83,9 @@ const { t } = useI18n()
 const router = useRouter()
 const acctCount = ref(1)
 
+function go(path) { router.push(path) }
 function goForm(mode) {
   router.push({ path: '/transfer/form', query: { mode } })
-}
-
-function toastSoon(kind) {
-  showToast(t(kind === 'phone' ? 'transfer.phoneSoon' : 'transfer.schedSoon'))
 }
 
 function toastHelp() {

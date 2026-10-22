@@ -100,14 +100,17 @@
 
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { showFailToast, showSuccessToast } from 'vant'
+import { showFailToast } from 'vant'
 import { fetchHome, shopBuy, shopCatalog, shopOrders } from '../api'
 import PayPassword from '../components/PayPassword.vue'
 import { money } from '../utils'
 import { getPoints, pushNotice, setPoints } from '../utils/local'
+import { openResult } from '../utils/result'
 
 const { t, locale } = useI18n()
+const router = useRouter()
 const tab = ref(0)
 const cat = ref('all')
 const catalog = ref([])
@@ -234,7 +237,19 @@ async function confirmBuy() {
       pay_password: pin
     })
     if (res.code !== 0) {
-      showFailToast(res.message || t('points.fail'))
+      openResult(router, {
+        kind: 'points',
+        note: t('result.note_points'),
+        ok: false,
+        title: t('points.fail'),
+        reason: res.message || t('points.fail'),
+        subtitle: selected.value.name,
+        back: '/points',
+        rows: [
+          { label: t('result.product'), value: selected.value.name },
+          { label: t('result.qty'), value: String(q.value) }
+        ]
+      })
       return
     }
     if (pts > 0) {
@@ -242,10 +257,21 @@ async function confirmBuy() {
       setPoints(points.value)
     }
     pushNotice(t('points.ok'), selected.value.name)
-    showSuccessToast(t('points.ok'))
-    showBuy.value = false
-    tab.value = 1
-    await load()
+    openResult(router, {
+      kind: 'points',
+      note: t('result.note_points'),
+      title: t('points.ok'),
+      amount: Number(cash) > 0 ? money(cash) : `${pts} pts`,
+      subtitle: selected.value.name,
+      ref: res.data?.order_id,
+      back: '/points',
+      rows: [
+        { label: t('result.product'), value: selected.value.name },
+        { label: t('result.qty'), value: String(q.value) },
+        { label: t('points.balance'), value: String(points.value) },
+        { label: t('result.cash'), value: money(cash) }
+      ]
+    })
   } finally {
     loading.value = false
   }

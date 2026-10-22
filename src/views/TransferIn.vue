@@ -71,12 +71,17 @@
 
 <script setup>
 import { computed, onMounted, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { showFailToast, showSuccessToast } from 'vant'
 import { deposit, fetchHome } from '../api'
+import { recordOrder } from '../services/desk'
+import { pushNotice } from '../utils/local'
 import PayPassword from '../components/PayPassword.vue'
+import { openResult } from '../utils/result'
 
 const { t } = useI18n()
+const router = useRouter()
 const payPwd = ref(null)
 const amount = ref('100.00')
 const loading = ref(false)
@@ -178,10 +183,40 @@ async function onSimulate() {
   try {
     const res = await deposit(wire.value.accountNo, amount.value, pin)
     if (res.code !== 0) {
-      showFailToast(res.message || t('transfer.inFail'))
+      openResult(router, {
+        kind: 'transfer',
+        note: t('result.note_transfer'),
+        ok: false,
+        title: t('transfer.inFail'),
+        reason: res.message || t('transfer.inFail'),
+        amount: `$${Number(amount.value).toFixed(2)}`,
+        back: '/transfer-in',
+        rows: [{ label: t('transfer.to'), value: wire.value.accountNo }]
+      })
       return
     }
-    showSuccessToast(t('transfer.inOk'))
+    recordOrder({
+      kind: 'inbound',
+      name: wire.value.beneficiary,
+      account: wire.value.accountNo,
+      amount: amount.value,
+      status: 'completed'
+    })
+    pushNotice(t('transfer.inOk'), amount.value)
+    openResult(router, {
+      kind: 'transfer',
+      note: t('result.note_transfer'),
+      title: t('transfer.inOk'),
+      amount: `$${Number(amount.value).toFixed(2)}`,
+      ref: res.data?.txn_id,
+      back: '/',
+      rows: [
+        { label: t('transfer.beneficiary'), value: wire.value.beneficiary },
+        { label: t('transfer.to'), value: wire.value.accountNo },
+        { label: t('transfer.bankName'), value: wire.value.bankName || 'aku-bank' },
+        { label: t('transfer.swift'), value: wire.value.swift || '-' }
+      ]
+    })
   } finally {
     loading.value = false
   }

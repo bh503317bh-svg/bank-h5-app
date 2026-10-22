@@ -46,6 +46,11 @@
             @click="repay(l)"
           >{{ t('loans.repay') }}</van-button>
         </div>
+        <div class="sched">
+          <div v-for="(pmt, i) in schedule(l)" :key="i" class="muted">
+            {{ pmt.due }} · {{ money(pmt.amount) }}
+          </div>
+        </div>
       </div>
     </div>
     <PayPassword ref="payPwd" />
@@ -54,13 +59,16 @@
 
 <script setup>
 import { onMounted, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { showConfirmDialog, showFailToast, showSuccessToast } from 'vant'
+import { showConfirmDialog } from 'vant'
 import { fetchLoanDashboard, fetchLoanProducts, loanApply, loanRepay } from '../api'
 import PayPassword from '../components/PayPassword.vue'
 import { money } from '../utils'
+import { openResult } from '../utils/result'
 
 const { t } = useI18n()
+const router = useRouter()
 const products = ref([])
 const loans = ref([])
 const dash = ref(null)
@@ -73,6 +81,17 @@ async function load() {
     dash.value = d.data
     loans.value = d.data?.loans || []
   }
+}
+
+function schedule(l) {
+  const left = Number(l.outstanding_principal || 0)
+  const term = Number(l.term_months || l.remaining_terms || 6) || 6
+  const each = left > 0 ? (left / Math.min(term, 6)).toFixed(2) : '0.00'
+  return [1, 2, 3].map((n) => {
+    const d = new Date()
+    d.setMonth(d.getMonth() + n)
+    return { due: d.toISOString().slice(0, 10), amount: each }
+  })
 }
 
 async function apply(p) {
@@ -100,11 +119,39 @@ async function apply(p) {
     pay_password: pin
   })
   if (res.code !== 0) {
-    showFailToast(res.message || t('loans.applyFail'))
+    openResult(router, {
+      kind: 'loan',
+      note: t('result.note_loan_apply'),
+      ok: false,
+      title: t('loans.applyFail'),
+      reason: res.message || t('loans.applyFail'),
+      amount: money('2000'),
+      subtitle: p.name,
+      back: '/loans',
+      rows: [
+        { label: t('result.product'), value: p.name },
+        { label: t('result.term'), value: `${term}` }
+      ]
+    })
     return
   }
-  showSuccessToast(t('loans.applyOk'))
-  await load()
+  const loanId = res.data?.loan_id || res.data?.application_id || ''
+  openResult(router, {
+    kind: 'loan',
+    note: t('result.note_loan_apply'),
+    title: t('loans.applyOk'),
+    amount: money('2000'),
+    subtitle: p.name,
+    ref: loanId,
+    back: '/loans',
+    rows: [
+      { label: t('result.product'), value: p.name },
+      { label: t('loans.rateLabel'), value: p.annual_rate },
+      { label: t('result.term'), value: `${term}` },
+      { label: t('result.purpose'), value: 'electronics' },
+      { label: t('result.loanId'), value: loanId || '-' }
+    ]
+  })
 }
 
 async function repay(l) {
@@ -122,11 +169,31 @@ async function repay(l) {
   if (!pin) return
   const res = await loanRepay({ loan_id: l.loan_id, amount: '100', pay_password: pin })
   if (res.code !== 0) {
-    showFailToast(res.message || t('loans.repayFail'))
+    openResult(router, {
+      kind: 'loan',
+      note: t('result.note_loan_repay'),
+      ok: false,
+      title: t('loans.repayFail'),
+      reason: res.message || t('loans.repayFail'),
+      amount: money('100'),
+      back: '/loans',
+      rows: [{ label: t('result.loanId'), value: l.loan_id }]
+    })
     return
   }
-  showSuccessToast(t('loans.repayOk'))
-  await load()
+  openResult(router, {
+    kind: 'loan',
+    note: t('result.note_loan_repay'),
+    title: t('loans.repayOk'),
+    amount: money('100'),
+    ref: res.data?.repay_id || l.loan_id,
+    back: '/loans',
+    rows: [
+      { label: t('result.loanId'), value: l.loan_id },
+      { label: t('loans.outstanding'), value: money(l.outstanding_principal || l.principal || '0') },
+      { label: t('result.repayment'), value: money('100') }
+    ]
+  })
 }
 
 onMounted(load)
@@ -149,4 +216,5 @@ onMounted(load)
 .muted { color: #8a8f99; font-size: 12px; }
 .right { text-align: right; }
 .empty { padding: 18px 0; text-align: center; color: #999; font-size: 13px; }
+.sched { margin-top: 6px; }
 </style>
