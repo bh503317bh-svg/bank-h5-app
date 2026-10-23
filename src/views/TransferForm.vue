@@ -114,6 +114,7 @@ import PayPassword from '../components/PayPassword.vue'
 import { pushNotice } from '../utils/local'
 import { knownPayee, limitError, recordOrder, savePayee, validateCounterparty, listPayees } from '../services/desk'
 import { openResult } from '../utils/result'
+import { money } from '../utils'
 
 const { t } = useI18n()
 const route = useRoute()
@@ -165,7 +166,7 @@ function onPayee(action) {
 function fmtBal(a) {
   const b = a?.balance ?? a?.available_balance
   if (b == null || b === '') return ''
-  return ` · $${b}`
+  return ` · ${money(b, { currency: a.currency || 'USD' })}`
 }
 
 const fromLabel = computed(() => {
@@ -183,7 +184,7 @@ const toLabel = computed(() => {
 const pickActions = computed(() => {
   const list = myAccounts.value.map((a) => ({
     name: `${a.account_no}${fmtBal(a)}`,
-    subname: a.product_name || 'USD',
+    subname: `${a.currency || 'USD'} · ${a.product_name || t('home.wecodeCard')}`,
     account_no: a.account_no,
     disabled:
       (pickTarget.value === 'from' && a.account_no === toAccount.value) ||
@@ -255,6 +256,12 @@ async function onSubmit() {
     }
     if (fromAccount.value === toAccount.value) {
       showFailToast(t('transfer.sameAccount'))
+      return
+    }
+    const src = myAccounts.value.find((a) => a.account_no === fromAccount.value)
+    const dst = myAccounts.value.find((a) => a.account_no === toAccount.value)
+    if ((src?.currency || 'USD') !== (dst?.currency || 'USD')) {
+      showFailToast(t('transfer.sameCcy'))
       return
     }
   } else if (!beneficiaryName.value.trim()) {

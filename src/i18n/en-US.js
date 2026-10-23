@@ -36,7 +36,14 @@ export default {
   },
   home: {
     totalAssets: 'Total assets',
+    usdEq: 'In USD',
     accCount: 'Accounts',
+    ccy_USD: 'US dollar',
+    ccy_EUR: 'Euro',
+    ccy_HKD: 'Hong Kong dollar',
+    ccy_JPY: 'Japanese yen',
+    ccy_SGD: 'Singapore dollar',
+    ccy_CNY: 'Renminbi',
     viewTxn: 'View activity',
     bannerTag: 'Learning done',
     bannerTitle: 'First transfer-in gets $5 gift card',
@@ -176,7 +183,8 @@ export default {
     pickTo: 'Select receiving account',
     toSelfAcct: 'My receiving account',
     sameAccount: 'From and to must differ',
-    needTwoAccts: 'Need at least two of your accounts'
+    needTwoAccts: 'Need at least two of your accounts',
+    sameCcy: 'Use Exchange for a different currency'
   },
   mine: {
     security: 'Security',

@@ -5,12 +5,26 @@ const DAILY_LIMIT = 5000
 
 export const FX = {
   USD: 1,
+  EUR: 0.92,
+  HKD: 7.8,
+  JPY: 149,
+  CNY: 7.25,
   SGD: 1.35,
   THB: 33.2,
   MYR: 4.2,
   IDR: 15600,
   VND: 25400,
   PHP: 56
+}
+
+export function sumUsd(accounts) {
+  return (accounts || []).reduce((sum, account) => {
+    const currency = account.currency || 'USD'
+    const rate = FX[currency] || 1
+    const amount = Number(account.balance || 0)
+    if (!Number.isFinite(amount)) return sum
+    return sum + amount / rate
+  }, 0)
 }
 
 function arr(key) {

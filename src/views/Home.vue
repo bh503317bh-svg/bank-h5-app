@@ -21,10 +21,19 @@
           <span>{{ t('home.totalAssets') }}</span>
           <van-icon :name="hide ? 'closed-eye' : 'eye-o'" @click="hide = !hide" />
         </div>
-        <div class="asset-num">{{ money(home?.total_balance || '0.00', { hide }) }}</div>
+        <div class="asset-num">{{ money(usdTotal, { hide }) }}</div>
         <div class="asset-sub" @click="go('/transactions')">
-          <span>{{ t('home.accCount') }} {{ hide ? '****' : accountCount }}</span>
+          <span>{{ t('home.usdEq') }} · {{ t('home.accCount') }} {{ hide ? '****' : accountCount }}</span>
           <span>{{ t('home.viewTxn') }} ›</span>
+        </div>
+        <div v-if="accounts.length" class="ccy-list">
+          <div v-for="a in accounts" :key="a.account_no" class="ccy-row" @click="goTxn(a)">
+            <div>
+              <div class="ccy-code">{{ a.currency || 'USD' }} · {{ ccyName(a.currency) }}</div>
+              <div class="muted">{{ maskAccount(a.account_no) }}</div>
+            </div>
+            <div class="ccy-bal">{{ money(a.balance, { hide, currency: a.currency || 'USD' }) }}</div>
+          </div>
         </div>
       </div>
 
@@ -41,7 +50,7 @@
             <div class="prod-icon blue"><van-icon name="credit-pay" size="20" /></div>
             <div>
               <div class="prod-name">{{ t('home.wecodeCard') }}</div>
-              <div class="muted">{{ money(primary?.balance || '0.00', { hide }) }}</div>
+              <div class="muted">{{ money(primary?.balance || '0.00', { hide, currency: primary?.currency || 'USD' }) }}</div>
             </div>
           </div>
           <div class="prod-actions">
@@ -81,7 +90,8 @@ import { showToast } from 'vant'
 import { fetchHome } from '../api'
 import { localizeAccountProducts } from '../mock/products'
 import { useAuthStore } from '../stores/auth'
-import { money } from '../utils'
+import { maskAccount, money } from '../utils'
+import { sumUsd } from '../services/desk'
 
 const { t, locale } = useI18n()
 const router = useRouter()
@@ -106,14 +116,25 @@ const quicks = computed(() => {
   ]
 })
 
-const primary = computed(() => home.value?.accounts?.[0])
-const accountCount = computed(() => home.value?.accounts?.length || 0)
+const accounts = computed(() => home.value?.accounts || [])
+const primary = computed(() => accounts.value.find((a) => (a.currency || 'USD') === 'USD') || accounts.value[0])
+const accountCount = computed(() => accounts.value.length)
+const usdTotal = computed(() => sumUsd(accounts.value).toFixed(2))
+
+function ccyName(code) {
+  const key = `home.ccy_${code || 'USD'}`
+  const text = t(key)
+  return text === key ? (code || 'USD') : text
+}
 const displayName = computed(
   () => home.value?.user?.display_name || auth.user?.display_name || auth.user?.mobile || 'User'
 )
 const avatarText = computed(() => String(displayName.value || 'U').slice(0, 1))
 
 function go(path) { router.push(path) }
+function goTxn(account) {
+  router.push({ path: '/transactions', query: { no: account.account_no } })
+}
 function goBuy(p) {
   router.push({
     path: '/wealth/buy',
@@ -180,6 +201,14 @@ onMounted(() => {
   margin-top: 12px; display: flex; justify-content: space-between;
   color: #8a8f99; font-size: 12px;
 }
+.ccy-list { margin-top: 12px; border-top: 1px solid #f0f2f5; }
+.ccy-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 10px 0; border-bottom: 1px solid #f6f7f9;
+}
+.ccy-row:last-child { border-bottom: none; }
+.ccy-code { font-size: 14px; font-weight: 700; color: #1f2329; }
+.ccy-bal { font-weight: 700; color: #0052d9; font-size: 14px; }
 .banner { margin-top: 12px; padding: 16px; position: relative; }
 .banner-tag {
   position: absolute; right: 12px; top: 12px; font-size: 11px; color: #999;

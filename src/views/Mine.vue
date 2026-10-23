@@ -14,7 +14,7 @@
       </div>
       <div class="stats">
         <div class="stat" @click="go('/transactions')">
-          <div class="v">{{ money(totalBalance, { hide }) }}</div>
+          <div class="v">{{ money(usdTotal, { hide }) }}</div>
           <div class="k">{{ t('mine.totalAssets') }}</div>
         </div>
         <div class="stat" @click="go('/points')">
@@ -53,12 +53,12 @@
       </div>
       <div class="wb-card acc-list">
         <div v-if="!accounts.length" class="empty">{{ t('transfer.noAccount') }}</div>
-        <div v-for="a in accounts" :key="a.account_no" class="acc" @click="go('/transactions')">
+        <div v-for="a in accounts" :key="a.account_no" class="acc" @click="goTxn(a)">
           <div>
-            <div class="ano">{{ maskAccount(a.account_no) }}</div>
-            <div class="muted">{{ a.product_name || t('home.wecodeCard') }} · {{ a.status || 'active' }}</div>
+            <div class="ano">{{ a.currency || 'USD' }} · {{ ccyName(a.currency) }}</div>
+            <div class="muted">{{ maskAccount(a.account_no) }}</div>
           </div>
-          <div class="abal">{{ money(a.balance, { hide }) }}</div>
+          <div class="abal">{{ money(a.balance, { hide, currency: a.currency || 'USD' }) }}</div>
         </div>
       </div>
 
@@ -118,7 +118,7 @@ import { openResult } from '../utils/result'
 import { useAuthStore } from '../stores/auth'
 import { money, maskAccount } from '../utils'
 import { getNotices, getPoints, pushNotice } from '../utils/local'
-import { getKyc } from '../services/desk'
+import { getKyc, sumUsd } from '../services/desk'
 
 const { t, locale } = useI18n()
 const auth = useAuthStore()
@@ -138,6 +138,16 @@ const mobile = computed(() => auth.user?.mobile || '-')
 const avatar = computed(() => String(displayName.value || 'U').slice(0, 1).toUpperCase())
 const unreadText = computed(() => (unread.value > 0 ? String(unread.value) : ''))
 const accountCount = computed(() => accounts.value.length)
+const usdTotal = computed(() => sumUsd(accounts.value).toFixed(2))
+
+function ccyName(code) {
+  const key = `home.ccy_${code || 'USD'}`
+  const text = t(key)
+  return text === key ? (code || 'USD') : text
+}
+function goTxn(account) {
+  router.push({ path: '/transactions', query: { no: account.account_no } })
+}
 const customerId = computed(() => customer.value?.customer_id || customer.value?.id || '')
 const kycLabel = computed(() => {
   if (getKyc().status === 'verified') return t('desk.kycOk')

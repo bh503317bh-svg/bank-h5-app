@@ -1,5 +1,19 @@
-/** Display currency for aku-bank demo (USD). */
+/** Display symbols. Rates live in services/desk.js. */
 export const CURRENCY = '$'
+
+const SYMBOL = {
+  USD: '$',
+  EUR: '€',
+  HKD: 'HK$',
+  JPY: '¥',
+  SGD: 'S$',
+  CNY: 'CN¥',
+  THB: '฿',
+  MYR: 'RM',
+  IDR: 'Rp',
+  VND: '₫',
+  PHP: '₱'
+}
 
 export function maskAccount(no = '') {
   const s = String(no)
@@ -7,13 +21,17 @@ export function maskAccount(no = '') {
   return `**** **** **** ${s.slice(-4)}`
 }
 
-export function money(amount, { hide = false } = {}) {
+export function money(amount, { hide = false, currency = 'USD' } = {}) {
+  const code = currency || 'USD'
+  const sym = SYMBOL[code] || `${code} `
   if (hide) return '****'
-  if (amount === null || amount === undefined || amount === '') return `${CURRENCY}0.00`
-  return `${CURRENCY}${amount}`
+  const n = Number(amount)
+  if (!Number.isFinite(n)) return code === 'JPY' ? `${sym}0` : `${sym}0.00`
+  if (code === 'JPY') return `${sym}${Math.round(n).toLocaleString('en-US')}`
+  return `${sym}${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
 
 export function formatSignedAmount(item) {
   const sign = item.direction === 'in' ? '+' : '-'
-  return `${sign}${CURRENCY}${item.amount}`
+  return `${sign}${money(item.amount, { currency: item.currency || 'USD' })}`
 }

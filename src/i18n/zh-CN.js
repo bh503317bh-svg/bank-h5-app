@@ -36,7 +36,14 @@ export default {
   },
   home: {
     totalAssets: '总资产',
+    usdEq: '折合美元',
     accCount: '账户数',
+    ccy_USD: '美元',
+    ccy_EUR: '欧元',
+    ccy_HKD: '港币',
+    ccy_JPY: '日元',
+    ccy_SGD: '新币',
+    ccy_CNY: '人民币',
     viewTxn: '查看流水',
     bannerTag: '完成学习',
     bannerTitle: '首次转入成功得 $5 礼品卡',
@@ -176,7 +183,8 @@ export default {
     pickTo: '选择收款账户',
     toSelfAcct: '本人收款账户',
     sameAccount: '付款与收款账户不能相同',
-    needTwoAccts: '至少需要两个本人账户才能互转'
+    needTwoAccts: '至少需要两个本人账户才能互转',
+    sameCcy: '不同币种请到换汇办理'
   },
   mine: {
     security: '安全中心',

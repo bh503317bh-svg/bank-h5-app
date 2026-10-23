@@ -145,7 +145,7 @@ const filtered = computed(() => {
 
 const accActions = computed(() =>
   accounts.value.map((a) => ({
-    name: `${a.account_no}  ${money(a.balance)}`,
+    name: `${a.currency || 'USD'}  ${a.account_no}  ${money(a.balance, { currency: a.currency || 'USD' })}`,
     account_no: a.account_no,
     balance: a.balance
   }))
@@ -205,8 +205,9 @@ async function load() {
   ])
   if (home.code === 0) {
     accounts.value = home.data.accounts || []
-    cashBalance.value = home.data.total_balance || '0.00'
-    if (!accountNo.value && accounts.value[0]) accountNo.value = accounts.value[0].account_no
+    const usd = accounts.value.find((a) => (a.currency || 'USD') === 'USD') || accounts.value[0]
+    cashBalance.value = usd?.balance || '0.00'
+    if (!accountNo.value && usd) accountNo.value = usd.account_no
   }
   if (catRes.code === 0) catalog.value = catRes.data?.items || []
   if (ordRes.code === 0) orders.value = ordRes.data || []

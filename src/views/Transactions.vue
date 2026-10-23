@@ -25,7 +25,7 @@
           <div class="time">{{ item.created_at }}</div>
         </div>
         <div class="amt" :class="item.direction === 'in' ? 'in' : 'out'">
-          {{ item.direction === 'in' ? '+' : '-' }}${{ item.amount }}
+          {{ signed(item) }}
         </div>
       </div>
     </div>
@@ -38,11 +38,15 @@
 
 <script setup>
 import { computed, onMounted, ref } from 'vue'
+import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { fetchHome, fetchLedgers } from '../api'
+import { money } from '../utils'
 
 const { t } = useI18n()
+const route = useRoute()
 const rows = ref([])
+const currency = ref('USD')
 const loading = ref(true)
 const sortMode = ref(0) // 0 time desc, 1 amt desc, 2 amt asc
 const dirMode = ref(0) // 0 all, 1 in, 2 out
@@ -78,14 +82,24 @@ function cycleDir() {
   dirMode.value = (dirMode.value + 1) % 3
 }
 
+function signed(item) {
+  const sign = item.direction === 'in' ? '+' : '-'
+  return `${sign}${money(item.amount, { currency: currency.value })}`
+}
+
 onMounted(async () => {
   try {
     const home = await fetchHome()
-    if (home.code !== 0 || !home.data?.accounts?.[0]) {
+    const list = home.code === 0 ? (home.data?.accounts || []) : []
+    const picked = list.find((a) => a.account_no === route.query.no)
+      || list.find((a) => (a.currency || 'USD') === 'USD')
+      || list[0]
+    if (!picked) {
       rows.value = []
       return
     }
-    const res = await fetchLedgers(home.data.accounts[0].account_no)
+    currency.value = picked.currency || 'USD'
+    const res = await fetchLedgers(picked.account_no)
     rows.value = res.code === 0 ? (res.data || []) : []
   } finally {
     loading.value = false

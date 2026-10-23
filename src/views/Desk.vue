@@ -68,15 +68,16 @@
 
     <template v-else-if="kind === 'fx'">
       <div class="wb-card summary">
-        <div class="muted">{{ t('desk.usdCash') }}</div>
-        <div class="num">{{ money(usdBalance) }}</div>
+        <div class="muted">{{ t('home.usdEq') }}</div>
+        <div class="num">{{ money(usdEq) }}</div>
         <div class="pockets">
-          <span v-for="c in fxCodes" :key="c">{{ c }} {{ pocketBalance(c).toFixed(2) }}</span>
+          <span v-for="a in accounts" :key="a.account_no">{{ a.currency || 'USD' }} {{ money(a.balance, { currency: a.currency || 'USD' }) }}</span>
+          <span v-for="c in pocketCodes" :key="c">{{ c }} {{ pocketBalance(c).toFixed(2) }}</span>
         </div>
       </div>
       <van-cell-group inset>
-        <van-field v-model="fx.from" :label="t('desk.fromCcy')" placeholder="USD" />
-        <van-field v-model="fx.to" :label="t('desk.toCcy')" placeholder="SGD" />
+        <van-field v-model="fx.from" :label="t('desk.fromCcy')" placeholder="USD / EUR / CNY" />
+        <van-field v-model="fx.to" :label="t('desk.toCcy')" placeholder="EUR / HKD / JPY / SGD" />
         <van-field v-model="fx.amount" :label="t('transfer.amount')" placeholder="100" />
       </van-cell-group>
       <div class="hint" v-if="fxQuote">1 {{ fx.from }} = {{ fxQuote.rate }} {{ fx.to }} → {{ fxQuote.out }}</div>
@@ -184,6 +185,7 @@ import {
   patchSchedule,
   pocketBalance,
   quoteFx,
+  sumUsd,
   recordOrder,
   redeemHolding,
   removePayee,
@@ -205,6 +207,7 @@ const faceAfterSubmit = ref(false)
 const busy = ref(false)
 const accountNo = ref('')
 const usdBalance = ref('0.00')
+const accounts = ref([])
 const payees = ref([])
 const orders = ref([])
 const schedules = ref([])
@@ -227,6 +230,12 @@ const dispute = reactive({ ref: '', reason: '' })
 const rails = ['PayNow', 'PromptPay', 'DuitNow', 'QRIS']
 
 const fxQuote = computed(() => quoteFx(fx.from.trim().toUpperCase(), fx.to.trim().toUpperCase(), fx.amount))
+const usdEq = computed(() => sumUsd(accounts.value).toFixed(2))
+const pocketCodes = computed(() => fxCodes.filter((code) => !accounts.value.some((a) => (a.currency || 'USD') === code)))
+
+function acctOf(ccy) {
+  return accounts.value.find((a) => (a.currency || 'USD') === ccy)
+}
 
 function reload() {
   payees.value = listPayees()
@@ -240,9 +249,12 @@ function reload() {
 
 async function loadAccount() {
   const res = await fetchHome()
-  if (res.code === 0 && res.data.accounts?.[0]) {
-    accountNo.value = res.data.accounts[0].account_no
-    usdBalance.value = res.data.accounts[0].balance || '0.00'
+  if (res.code !== 0) return
+  accounts.value = res.data.accounts || []
+  const usd = acctOf('USD') || accounts.value[0]
+  if (usd) {
+    accountNo.value = usd.account_no
+    usdBalance.value = usd.balance || '0.00'
   }
 }
 
@@ -409,6 +421,32 @@ async function runBatch() {
   }
 }
 
+async function settleFx(from, to, amount, out, pin) {
+  const src = acctOf(from)
+  const dst = acctOf(to)
+  const need = Number(amount)
+  if (src) {
+    if (Number(src.balance) < need) return { ok: false, reason: t('desk.fxShort') }
+    const res = await withdraw(src.account_no, String(amount), pin)
+    if (res.code !== 0) return { ok: false, reason: res.message || t('desk.fxFail') }
+  } else if (pocketBalance(from) < need) {
+    return { ok: false, reason: t('desk.fxShort') }
+  } else {
+    setPocket(from, pocketBalance(from) - need)
+  }
+  if (dst) {
+    const res = await deposit(dst.account_no, String(out), pin)
+    if (res.code !== 0) {
+      if (src) await deposit(src.account_no, String(amount), pin)
+      else setPocket(from, pocketBalance(from) + need)
+      return { ok: false, reason: res.message || t('desk.fxFail') }
+    }
+  } else {
+    setPocket(to, pocketBalance(to) + Number(out))
+  }
+  return { ok: true }
+}
+
 async function runFx() {
   const from = fx.from.trim().toUpperCase()
   const to = fx.to.trim().toUpperCase()
@@ -421,67 +459,19 @@ async function runFx() {
   if (!pin) return
   busy.value = true
   try {
-    if (from === 'USD') {
-      const res = await withdraw(accountNo.value, String(fx.amount), pin)
-      if (res.code !== 0) {
-        openResult(router, {
-          kind: 'fx',
-          note: t('result.note_fx'),
-          ok: false,
-          title: t('desk.fxFail'),
-          reason: res.message || t('desk.fxFail'),
-          amount: `${Number(fx.amount).toFixed(2)} ${from}`,
-          back: '/fx',
-          rows: [{ label: t('result.pair'), value: `${from} → ${to}` }]
-        })
-        return
-      }
-      setPocket(to, pocketBalance(to) + q.out)
-    } else if (to === 'USD') {
-      if (pocketBalance(from) < Number(fx.amount)) {
-        openResult(router, {
-          kind: 'fx',
-          note: t('result.note_fx'),
-          ok: false,
-          title: t('desk.fxFail'),
-          reason: t('desk.fxShort'),
-          amount: `${Number(fx.amount).toFixed(2)} ${from}`,
-          back: '/fx',
-          rows: [{ label: t('result.pair'), value: `${from} → ${to}` }]
-        })
-        return
-      }
-      const res = await deposit(accountNo.value, String(q.out), pin)
-      if (res.code !== 0) {
-        openResult(router, {
-          kind: 'fx',
-          note: t('result.note_fx'),
-          ok: false,
-          title: t('desk.fxFail'),
-          reason: res.message || t('desk.fxFail'),
-          amount: `${Number(fx.amount).toFixed(2)} ${from}`,
-          back: '/fx',
-          rows: [{ label: t('result.pair'), value: `${from} → ${to}` }]
-        })
-        return
-      }
-      setPocket(from, pocketBalance(from) - Number(fx.amount))
-    } else {
-      if (pocketBalance(from) < Number(fx.amount)) {
-        openResult(router, {
-          kind: 'fx',
-          note: t('result.note_fx'),
-          ok: false,
-          title: t('desk.fxFail'),
-          reason: t('desk.fxShort'),
-          amount: `${Number(fx.amount).toFixed(2)} ${from}`,
-          back: '/fx',
-          rows: [{ label: t('result.pair'), value: `${from} → ${to}` }]
-        })
-        return
-      }
-      setPocket(from, pocketBalance(from) - Number(fx.amount))
-      setPocket(to, pocketBalance(to) + q.out)
+    const moved = await settleFx(from, to, fx.amount, q.out, pin)
+    if (!moved.ok) {
+      openResult(router, {
+        kind: 'fx',
+        note: t('result.note_fx'),
+        ok: false,
+        title: t('desk.fxFail'),
+        reason: moved.reason || t('desk.fxFail'),
+        amount: `${Number(fx.amount).toFixed(2)} ${from}`,
+        back: '/fx',
+        rows: [{ label: t('result.pair'), value: `${from} → ${to}` }]
+      })
+      return
     }
     recordOrder({ kind: 'fx', name: `${from}->${to}`, account: to, amount: fx.amount, status: 'completed' })
     await loadAccount()

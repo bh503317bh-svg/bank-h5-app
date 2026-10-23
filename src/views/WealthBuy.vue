@@ -85,7 +85,7 @@ const riskAck = ref(!!getKyc().riskAck)
 
 const accountActions = computed(() =>
   accounts.value.map((a) => ({
-    name: `${a.account_no}  ${money(a.balance)}`,
+    name: `${a.currency || 'USD'}  ${a.account_no}  ${money(a.balance, { currency: a.currency || 'USD' })}`,
     account_no: a.account_no,
     balance: a.balance
   }))
@@ -107,7 +107,7 @@ onMounted(async () => {
   const res = await fetchHome()
   if (res.code === 0 && res.data.accounts?.length) {
     accounts.value = res.data.accounts
-    applyAccount(res.data.accounts[0])
+    applyAccount(res.data.accounts.find((a) => (a.currency || 'USD') === 'USD') || res.data.accounts[0])
   }
 })
 
